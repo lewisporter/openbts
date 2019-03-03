@@ -1,6 +1,6 @@
 [submodule "CommonLibs"]
 	path = CommonLibs
-	url = git@github.com:RangeNetworks/CommonLibs.git
+	url = https://github.com/lewisporter/CommonLibs.git
 	branch = 5.0
 [submodule "NodeManager"]
 	path = NodeManager

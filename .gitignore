@@ -48,3 +48,5 @@ TransceiverRAD1/PowerScanner
 debian/files
 debian/substvars
 debian/tmp/
+/cmake-build-debug
+/.idea

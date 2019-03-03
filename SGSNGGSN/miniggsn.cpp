@@ -94,15 +94,24 @@
 #include <netinet/tcp.h>		// pat added for tcphdr
 #include <netinet/udp.h>		// pat added for udphdr
 
+#ifdef __APPLE__
+#include <net/if.h>			// pat added.
+#else
 #include <linux/if.h>			// pat added.
 #include <linux/if_tun.h>			// pat added.
+#endif
+
 //#include <sys/ioctl.h>			// pat added, then removed because it defines NCC used in GSMConfig.
 #include <assert.h>				// pat added
 #include <stdarg.h>				// pat added
 #include <time.h>				// pat added.
 #include <sys/time.h>
 #include <sys/types.h>
+#ifdef __APPLE__
+#include <sys/wait.h>
+#else
 #include <wait.h>
+#endif
 #include "miniggsn.h"
 #undef NCC	// Make sure.  This is defined in ioctl.h, but used as a name in GSMConfig.h.
 #include "Ggsn.h"
@@ -256,33 +265,61 @@ static mg_con_t *mg_con_find_by_ip(uint32_t addr)
 
 static bool verbose = true;
 
+#ifdef __APPLE__
 static char *packettoa(char *result,unsigned char *packet, int len)
 {
-	struct iphdr *iph = (struct iphdr*)packet;
+	struct ip *iph = (struct ip*)packet;
 	char nbuf1[40], nbuf2[40];
-	if (verbose && iph->protocol == IPPROTO_TCP) {
-		struct tcphdr *tcph = (struct tcphdr*) (packet + 4 * iph->ihl);
+	if (verbose && iph->ip_p == IPPROTO_TCP) {
+		struct tcphdr *tcph = (struct tcphdr*) (packet + 4 * iph->ip_hl);
 		sprintf(result,"proto=%s %d byte packet seq=%u ack=%u id=%u frag=%u from %s:%d to %s:%d",
-			ip_proto_name(iph->protocol), len, tcph->seq, tcph->ack_seq,
-			iph->id, iph->frag_off,
-			ip_ntoa(iph->saddr,nbuf1),ntohs(tcph->source),
-			ip_ntoa(iph->daddr,nbuf2),ntohs(tcph->dest));
-	} else if (verbose && iph->protocol == IPPROTO_UDP) {
-		struct udphdr *udph = (struct udphdr*) (packet + 4 * iph->ihl);
+			ip_proto_name(iph->ip_p), iph->ip_len, tcph->th_seq, tcph->th_ack,
+			iph->ip_id, iph->ip_off,
+			ip_ntoa(iph->ip_src.s_addr,nbuf1),ntohs(tcph->th_sport),
+			ip_ntoa(iph->ip_dst.s_addr,nbuf2),ntohs(tcph->th_dport));
+	} else if (verbose && iph->ip_p == IPPROTO_UDP) {
+		struct udphdr *udph = (struct udphdr*) (packet + 4 * iph->ip_hl);
 		sprintf(result,"proto=%s %d byte packet id=%u frag=%u from %s:%d to %s:%d",
-			ip_proto_name(iph->protocol), len,
-			iph->id, iph->frag_off,
-			ip_ntoa(iph->saddr,nbuf1),ntohs(udph->source),
-			ip_ntoa(iph->daddr,nbuf2),ntohs(udph->dest));
+			ip_proto_name(iph->ip_p), len,
+			iph->ip_id, iph->ip_off,
+			ip_ntoa(iph->ip_src.s_addr,nbuf1),ntohs(udph->uh_sport),
+			ip_ntoa(iph->ip_dst.s_addr,nbuf2),ntohs(udph->uh_dport));
 	} else {
 		sprintf(result,"proto=%s %d byte packet from %s to %s",
-			ip_proto_name(iph->protocol), len,
-			ip_ntoa(iph->saddr,nbuf1),
-			ip_ntoa(iph->daddr,nbuf2));
+			ip_proto_name(iph->ip_p), len,
+			ip_ntoa(iph->ip_src.s_addr,nbuf1),
+			ip_ntoa(iph->ip_dst.s_addr,nbuf2));
 	}
 	return result;
 }
-
+#else
+	static char *packettoa(char *result,unsigned char *packet, int len)
+	{
+		struct iphdr *iph = (struct iphdr*)packet;
+		char nbuf1[40], nbuf2[40];
+		if (verbose && iph->protocol == IPPROTO_TCP) {
+			struct tcphdr *tcph = (struct tcphdr*) (packet + 4 * iph->ihl);
+			sprintf(result,"proto=%s %d byte packet seq=%u ack=%u id=%u frag=%u from %s:%d to %s:%d",
+					ip_proto_name(iph->protocol), len, tcph->seq, tcph->ack_seq,
+					iph->id, iph->frag_off,
+					ip_ntoa(iph->saddr,nbuf1),ntohs(tcph->source),
+					ip_ntoa(iph->daddr,nbuf2),ntohs(tcph->dest));
+		} else if (verbose && iph->protocol == IPPROTO_UDP) {
+			struct udphdr *udph = (struct udphdr*) (packet + 4 * iph->ihl);
+			sprintf(result,"proto=%s %d byte packet id=%u frag=%u from %s:%d to %s:%d",
+					ip_proto_name(iph->protocol), len,
+					iph->id, iph->frag_off,
+					ip_ntoa(iph->saddr,nbuf1),ntohs(udph->source),
+					ip_ntoa(iph->daddr,nbuf2),ntohs(udph->dest));
+		} else {
+			sprintf(result,"proto=%s %d byte packet from %s to %s",
+					ip_proto_name(iph->protocol), len,
+					ip_ntoa(iph->saddr,nbuf1),
+					ip_ntoa(iph->daddr,nbuf2));
+		}
+		return result;
+	}
+#endif
 
 unsigned char *miniggsn_rcv_npdu(int *plen, uint32_t *dstaddr)
 {
@@ -315,7 +352,11 @@ unsigned char *miniggsn_rcv_npdu(int *plen, uint32_t *dstaddr)
 		//*error = ret;	// huh?
 		return NULL;
 	} else {
+#ifdef __APPLE__
+		struct ip *iph = (struct ip*)recvbuf;
+#else
 		struct iphdr *iph = (struct iphdr*)recvbuf;
+#endif
 		{
 			char infobuf[200];
 			MGINFO("ggsn: received %s at %s",packettoa(infobuf,recvbuf,ret), timestr().c_str());
@@ -325,7 +366,11 @@ unsigned char *miniggsn_rcv_npdu(int *plen, uint32_t *dstaddr)
 				//ip_ntoa(iph->daddr,NULL), timestr());
 		}
 
+#ifdef __APPLE__
+		*dstaddr = iph->ip_dst.s_addr;
+#else
 		*dstaddr = iph->daddr;
+#endif
 		// TODO: Do we have to allocate a new buffer?
 		*plen = ret;
 		// Zero terminate for the convenience of the pinger.
@@ -334,6 +379,55 @@ unsigned char *miniggsn_rcv_npdu(int *plen, uint32_t *dstaddr)
 	}
 }
 
+#ifdef __APPLE__
+// If this is a duplicate TCP packet, throw it away.
+// The MS is so slow to respond that the servers often send dups
+// which are unnecessary because we have reliable communication between here
+// and the MS, so just toss them.
+// Update 3-2012: Always do the check to print messages for dup packets even if not discarded.
+static int mg_toss_dup_packet(mg_con_t*mgp,unsigned char *packet, int packetlen)
+{
+	struct ip *iph = (struct ip*)packet;
+	if (iph->ip_p != IPPROTO_TCP) { return 0; }
+	struct tcphdr *tcph = (struct tcphdr*) (packet + 4 * iph->ip_hl);
+	if ((tcph->th_flags & (TH_URG | TH_RST)) != 0) { return 0; }
+	int i;
+	for (i = 0; i < MG_PACKET_HISTORY; i++) {
+		// 3-2012: Jpegs are not going through the system properly.
+		// I am adding some more checks here to see if we are tossing packets inappropriately.
+		// The tot_len includes headers, but if they are not the same in the duplicate packet, oh well.
+		// TODO: If the connection is reset we should zero out our history.
+		if (mgp->mg_packets[i].saddr == iph->ip_src.s_addr &&
+		    mgp->mg_packets[i].daddr == iph->ip_dst.s_addr &&
+		    mgp->mg_packets[i].totlen == iph->ip_len &&
+		    //mgp->mg_packets[i].ipfragoff == iph->frag_off &&
+		    //mgp->mg_packets[i].ipid == iph->id &&
+		    mgp->mg_packets[i].seq == tcph->th_seq &&
+		    mgp->mg_packets[i].source == tcph->th_sport &&
+		    mgp->mg_packets[i].dest == tcph->th_dport
+			) {
+				const char *what = ggConfig.mgIpTossDup ? "discarding " : "";
+				char buf1[40],buf2[40];
+				MGINFO("ggsn: %sduplicate %d byte packet seq=%d frag=%d id=%d src=%s:%d dst=%s:%d",what,
+					packetlen,tcph->th_seq,iph->ip_off,iph->ip_id,
+					ip_ntoa(iph->ip_src.s_addr,buf1),tcph->th_sport,
+					ip_ntoa(iph->ip_dst.s_addr,buf2),tcph->th_dport);
+				return ggConfig.mgIpTossDup;	// Toss duplicate tcp packet if option set.
+			}
+	}
+	i = mgp->mg_oldest_packet;
+	if (++mgp->mg_oldest_packet >= MG_PACKET_HISTORY) { mgp->mg_oldest_packet = 0; }
+	mgp->mg_packets[i].saddr = iph->ip_src.s_addr;
+	mgp->mg_packets[i].daddr = iph->ip_dst.s_addr;
+	mgp->mg_packets[i].totlen = iph->ip_len;
+	//mgp->mg_packets[i].ipfragoff = iph->frag_off;
+	//mgp->mg_packets[i].ipid = iph->id;
+	mgp->mg_packets[i].seq = tcph->th_seq;
+	mgp->mg_packets[i].source = tcph->th_sport;
+	mgp->mg_packets[i].dest = tcph->th_dport;
+	return 0;	// Do not toss.
+}
+#else
 // If this is a duplicate TCP packet, throw it away.
 // The MS is so slow to respond that the servers often send dups
 // which are unnecessary because we have reliable communication between here
@@ -381,6 +475,7 @@ static int mg_toss_dup_packet(mg_con_t*mgp,unsigned char *packet, int packetlen)
 	mgp->mg_packets[i].dest = tcph->dest;
 	return 0;	// Do not toss.
 }
+#endif
 
 // There is data available on the socket.  Go get it.
 // see handle_nsip_read()
@@ -410,13 +505,22 @@ void miniggsn_handle_read()
 // The npdu is a raw packet including the ip header.
 int miniggsn_snd_npdu_by_mgc(mg_con_t *mgp,unsigned char *npdu, unsigned len)
 {
-    // Verify the IP header.
+// Verify the IP header
+#ifdef __APPLE__
+	struct ip *ipheader = (struct ip*)npdu;
+#else
     struct iphdr *ipheader = (struct iphdr*)npdu;
+#endif
     // The return address must be the MS itself.
     uint32_t ms_ip_address = mgp->mg_ip;
+
+#ifdef __APPLE__
+	uint32_t packet_source_ip_addr = ipheader->ip_src.s_addr;
+    uint32_t packet_dest_ip_addr = ipheader->ip_dst.s_addr;
+#else
     uint32_t packet_source_ip_addr = ipheader->saddr;
     uint32_t packet_dest_ip_addr = ipheader->daddr;
-
+#endif
 	char infobuf[200];
 	MGINFO("ggsn: writing %s at %s",packettoa(infobuf,npdu,len),timestr().c_str());
 	//MGLOGF("ggsn: writing proto=%s %d byte npdu to %s from %s at %s",
@@ -428,14 +532,21 @@ int miniggsn_snd_npdu_by_mgc(mg_con_t *mgp,unsigned char *npdu, unsigned len)
     if (! (assertion)) { MGERROR("ggsn: Packet failed test, discarded: %s",#assertion); return -1; }
 
     if (mg_debug_level > 2) ip_hdr_dump(npdu,"npdu");
+#ifdef __APPLE__
+	MUST_HAVE(ipheader->ip_v == 4);	// 4 as in IPv4
+    MUST_HAVE(ipheader->ip_hl >= 5);		// Minimum header length is 5 words.
+#else
     MUST_HAVE(ipheader->version == 4);	// 4 as in IPv4
     MUST_HAVE(ipheader->ihl >= 5);		// Minimum header length is 5 words.
-
+#endif
     int checksum = ip_checksum(ipheader,sizeof(*ipheader),NULL);
     MUST_HAVE(checksum == 0);				// If fails, packet is bad.
 
+#ifdef __APPLE__
+	MUST_HAVE(ipheader->ip_ttl > 0);		// Time to live - how many hops allowed.
+#else
     MUST_HAVE(ipheader->ttl > 0);		// Time to live - how many hops allowed.
-
+#endif
 
 	// The blackberry sends ICMP packets, so we better support.
 	// I'm just going to allow any protocol through.
@@ -459,10 +570,18 @@ int miniggsn_snd_npdu_by_mgc(mg_con_t *mgp,unsigned char *npdu, unsigned len)
 	}
 
     // Decrement ttl and recompute checksum.  We are doing this in place.
-    ipheader->ttl--;
-    ipheader->check = 0;
-    //ipheader->check = htons(ip_checksum(ipheader,sizeof(*ipheader),NULL));
-    ipheader->check = ip_checksum(ipheader,sizeof(*ipheader),NULL);
+#ifdef __APPLE__
+	ipheader->ip_ttl--;
+	ipheader->ip_sum = 0;
+	//ipheader->check = htons(ip_checksum(ipheader,sizeof(*ipheader),NULL));
+	ipheader->ip_sum = ip_checksum(ipheader,sizeof(*ipheader),NULL);
+#else
+	ipheader->ttl--;
+	ipheader->check = 0;
+	//ipheader->check = htons(ip_checksum(ipheader,sizeof(*ipheader),NULL));
+	ipheader->check = ip_checksum(ipheader,sizeof(*ipheader),NULL);
+#endif
+
 
 	// Just write to the MS-side tunnel device.
 

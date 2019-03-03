@@ -314,7 +314,12 @@ EXPORT int runcmd(const char *path, ...)
 	return 0;	// This is never used.
 }
 
-
+#ifdef __APPLE__
+EXPORT int ip_tun_open(const char *tname, const char *addrstr) {
+	MGERROR("NOT IMPLEMENTED ON MACOS");
+	return -1;
+}
+#else
 // The addrstr is the tunnel address and must include the mask, eg: "192.168.2.0/24"
 EXPORT int ip_tun_open(const char *tname, const char *addrstr) // int32_t ipaddr, int maskbits)
 {
@@ -384,6 +389,7 @@ EXPORT int ip_tun_open(const char *tname, const char *addrstr) // int32_t ipaddr
 
 	return fd;
 }
+#endif
 
 static int setprocoption(const char *procfn)
 {

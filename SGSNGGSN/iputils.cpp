@@ -31,8 +31,14 @@
 #include <netinet/tcp.h>		// pat added for tcphdr
 #include <netinet/udp.h>		// pat added for udphdr
 
+#ifdef __APPLE__
+#include <net/if.h>			// pat added.
+//#include <netinet/if_tun.h>			// pat added.
+#else
 #include <linux/if.h>			// pat added.
 #include <linux/if_tun.h>			// pat added.
+#endif
+
 #include <sys/ioctl.h>			// pat added.	This defines NCC, which is bad, because used in GSMConfig.h
 #undef NCC	// Just in case you want to include GSM files later.
 #include <assert.h>				// pat added
@@ -40,7 +46,11 @@
 #include <sys/time.h>				// pat added.
 #include <time.h>				// pat added.
 #include <sys/types.h>
+#ifdef __APPLE__
+#include <sys/wait.h>
+#else
 #include <wait.h>
+#endif
 #include <ctype.h>
 #include "miniggsn.h"
 #include <Globals.h>		// for gConfig
@@ -184,28 +194,50 @@ static int set_ip_using(const char *name, int c, unsigned long ip)
 }
 #endif
 
+#ifdef __APPLE__
 EXPORT void ip_hdr_dump(unsigned char *packet, const char *msg)
 {
 	struct iptcp {	// This is only accurate if no ip options specified.
-		struct iphdr ip;
+		struct ip ip;
 		struct tcphdr tcp;
 	};
 	struct iptcp *pp = (struct iptcp*)packet;
 	char nbuf[100];
 	printf("%s: ",msg);
 	printf("%d bytes protocol=%d saddr=%s daddr=%s version=%d ihl=%d tos=%d id=%d\n",
-		ntohs(pp->ip.tot_len),pp->ip.protocol,ip_ntoa(pp->ip.saddr,nbuf),ip_ntoa(pp->ip.daddr,NULL),
-		pp->ip.version,pp->ip.ihl,pp->ip.tos, ntohs(pp->ip.id));
+		ntohs(pp->ip.ip_len),pp->ip.ip_p,ip_ntoa(pp->ip.ip_src.s_addr,nbuf),ip_ntoa(pp->ip.ip_dst.s_addr,NULL),
+		pp->ip.ip_v,pp->ip.ip_hl,pp->ip.ip_tos, ntohs(pp->ip.ip_id));
 	printf("\tcheck=%d computed=%d frag=%d ttl=%d\n",
-		pp->ip.check,ip_checksum(packet,sizeof(struct iphdr),NULL),
-		ntohs(pp->ip.frag_off),pp->ip.ttl);
-	printf("\ttcp SYN=%d ACK=%d FIN=%d RES=%d sport=%u dport=%u\n",
-		pp->tcp.syn,pp->tcp.ack,pp->tcp.fin,pp->tcp.rst,
-		ntohs(pp->tcp.source),ntohs(pp->tcp.dest));
+		pp->tcp.th_sum,ip_checksum(packet,sizeof(struct ip),NULL),
+		ntohs(pp->ip.ip_off),pp->ip.ip_ttl);
+	printf("\ttcp flags=%d sport=%u dport=%u\n",
+		pp->tcp.th_flags, ntohs(pp->tcp.th_sport),ntohs(pp->tcp.th_dport));
 	printf("\t\tseq=%u ackseq=%u window=%u check=%u\n",
-		ntohl(pp->tcp.seq),ntohl(pp->tcp.ack_seq),htons(pp->tcp.window),htons(pp->tcp.check));
+		ntohl(pp->tcp.th_seq),ntohl(pp->tcp.th_ack),htons(pp->tcp.th_win),htons(pp->tcp.th_sum));
 }
-
+#else
+	EXPORT void ip_hdr_dump(unsigned char *packet, const char *msg)
+	{
+		struct iptcp {	// This is only accurate if no ip options specified.
+			struct iphdr ip;
+			struct tcphdr tcp;
+		};
+		struct iptcp *pp = (struct iptcp*)packet;
+		char nbuf[100];
+		printf("%s: ",msg);
+		printf("%d bytes protocol=%d saddr=%s daddr=%s version=%d ihl=%d tos=%d id=%d\n",
+			   ntohs(pp->ip.tot_len),pp->ip.protocol,ip_ntoa(pp->ip.saddr,nbuf),ip_ntoa(pp->ip.daddr,NULL),
+			   pp->ip.version,pp->ip.ihl,pp->ip.tos, ntohs(pp->ip.id));
+		printf("\tcheck=%d computed=%d frag=%d ttl=%d\n",
+			   pp->ip.check,ip_checksum(packet,sizeof(struct iphdr),NULL),
+			   ntohs(pp->ip.frag_off),pp->ip.ttl);
+		printf("\ttcp SYN=%d ACK=%d FIN=%d RES=%d sport=%u dport=%u\n",
+			   pp->tcp.syn,pp->tcp.ack,pp->tcp.fin,pp->tcp.rst,
+			   ntohs(pp->tcp.source),ntohs(pp->tcp.dest));
+		printf("\t\tseq=%u ackseq=%u window=%u check=%u\n",
+			   ntohl(pp->tcp.seq),ntohl(pp->tcp.ack_seq),htons(pp->tcp.window),htons(pp->tcp.check));
+	}
+#endif
 // Run the command.
 // This is not ip specific, but used to call linux "ip" and "route" commands.
 // If commands starts with '|', capture stdout and return the file descriptor to read it.

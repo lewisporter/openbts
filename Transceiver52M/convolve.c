@@ -710,7 +710,7 @@ int base_convolve_complex(float *x, int x_len,
 /* Aligned filter tap allocation */
 void *convolve_h_alloc(int len)
 {
-#ifdef HAVE_SSE3
+#ifndef __APPLE__ && defined(HAVE_SSE3)
 	return memalign(16, len * 2 * sizeof(float));
 #else
 	return malloc(len * 2 * sizeof(float));

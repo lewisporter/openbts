@@ -50,3 +50,6 @@ debian/substvars
 debian/tmp/
 /cmake-build-debug
 /.idea
+/Transceiver52M/USRPping
+/Transceiver52M/transceiver
+/Transceiver52M/sigProcLibTest

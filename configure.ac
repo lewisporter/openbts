@@ -118,7 +118,7 @@ dnl Check for liba53
 if test ! -r "/usr/include/a53.h" -a ! -r "/usr/local/include/a53.h"; then
     AC_MSG_ERROR([/usr/include/a53.h not found. Install the liba53 package or manually build and install with $ sudo ./tools/install_liba53.sh])
 fi
-AC_CHECK_LIB(a53, _init, ,[AC_MSG_ERROR([Cannot link with -la53. Install the liba53 package or manually build and install with $ sudo ./tools/install_liba53.sh])])
+#AC_CHECK_LIB(a53, _init, ,[AC_MSG_ERROR([Cannot link with -la53. Install the liba53 package or manually build and install with $ sudo ./tools/install_liba53.sh])])
 
 dnl Check for sip+rtp libs
 AC_MSG_CHECKING([ortp api version])

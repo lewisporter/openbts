@@ -26,7 +26,7 @@
 #include <uhd/property_tree.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/thread_priority.hpp>
-#include <uhd/utils/msg.hpp>
+#include <uhd/utils/log_add.hpp>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -323,20 +323,36 @@ void *async_event_loop(uhd_device *dev)
     since we already report using the logging facility. Direct
     everything else appropriately.
  */
-void uhd_msg_handler(uhd::msg::type_t type, const std::string &msg)
+void uhd_msg_handler(const uhd::log::logging_info &info)
 {
-	switch (type) {
-	case uhd::msg::status:
-		LOG(INFO) << msg;
-		break;
-	case uhd::msg::warning:
-		LOG(WARNING) << msg;
-		break;
-	case uhd::msg::error:
-		LOG(ERR) << msg;
-		break;
-	case uhd::msg::fastpath:
-		break;
+	std::string msg;
+
+	if (not info.file.empty()) {
+        std::string shortfile = info.file.substr(info.file.find_last_of("/\\") + 1);
+        msg += "[" + shortfile + ":" + std::to_string(info.line) + "] ";
+    }
+
+    if (not info.component.empty())
+    {
+        msg += "[" + info.component + "] ";
+    }
+
+    msg += info.message;
+
+
+	switch (info.verbosity) {
+	case uhd::log::trace:
+		LOG(DEBUG) << msg; break;
+	case uhd::log::debug:
+		LOG(DEBUG) << msg; break;
+	case uhd::log::info:
+		LOG(INFO) << msg; break;
+	case uhd::log::warning:
+		LOG(WARNING) << msg; break;
+	case uhd::log::error:
+		LOG(ERR) << msg; break;
+	case uhd::log::fatal:
+		LOG(EMERG) << msg; break;
 	}
 }
 
@@ -654,7 +670,7 @@ bool uhd_device::start()
 	setPriority();
 
 	// Register msg handler
-	uhd::msg::register_handler(&uhd_msg_handler);
+	uhd::log::add_logger("openSDR", &uhd_msg_handler);
 
 	// Start asynchronous event (underrun check) loop
 	async_event_thrd.start((void * (*)(void*))async_event_loop, (void*)this);

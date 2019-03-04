@@ -20,7 +20,11 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <iostream>
 
 #include "Resampler.h"
@@ -65,10 +69,12 @@ bool Resampler::initFilters(float bw)
 		return false;
 	}
 
+	#ifndef __APPLE__
 	for (size_t i = 0; i < p; i++) {
 		partitions[i] = (float *)
-				memalign(16, filt_len * 2 * sizeof(float));
+		memalign(16, filt_len * 2 * sizeof(float));
 	}
+	#endif
 
 	/* 
 	 * Generate the prototype filter with a Blackman-harris window.

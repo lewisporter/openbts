@@ -36,7 +36,11 @@
 #include <Logger.h>
 #include <Configuration.h>
 
+#ifdef __APPLE__
+#define CONFIGDB            "/usr/local/etc/OpenBTS/OpenBTS.db"
+#else
 #define CONFIGDB            "/etc/OpenBTS/OpenBTS.db"
+#endif
 
 /* Samples-per-symbol for downlink path
  *     4 - Uses precision modulator (more computation, less distortion)

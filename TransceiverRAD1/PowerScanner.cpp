@@ -25,8 +25,11 @@
 #include <list>
 
 ConfigurationKeyMap getAllConfigurationKeys();
+#ifdef __APPLE__
+ConfigurationTable gConfig("/usr/local/etc/OpenBTS/OpenBTS.db", "PowerScanner", getAllConfigurationKeys());
+#else
 ConfigurationTable gConfig("/etc/OpenBTS/OpenBTS.db", "PowerScanner", getAllConfigurationKeys());
-
+#endif
 
 using namespace std;
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CONFIG_DIR=/etc/OpenBTS
+CONFIG_DIR=/usr/local/etc/OpenBTS
 
 # Create the config dir if it dos not exist
 if [ ! -d "$CONFIG_DIR" ]; then

@@ -31,8 +31,11 @@
 #include <Configuration.h>
 #include "RAD1Device.h"
 
+#ifdef __APPLE__
+ConfigurationTable gConfig("/usr/local/etc/OpenBTS/OpenBTS.db");
+#else
 ConfigurationTable gConfig("/etc/OpenBTS/OpenBTS.db");
-
+#endif
 using namespace std;
 
 int main(int argc, char *argv[]) {

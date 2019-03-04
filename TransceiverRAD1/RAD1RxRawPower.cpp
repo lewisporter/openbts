@@ -32,7 +32,11 @@
 #include "RAD1Device.h"
 
 /* tomr had to add direct path to OpenBTS.db */
+#ifdef __APPLE__
+ConfigurationTable gConfig("/usr/local/etc/OpenBTS/OpenBTS.db");
+#else
 ConfigurationTable gConfig("/etc/OpenBTS/OpenBTS.db");
+#endif
 
 using namespace std;
 

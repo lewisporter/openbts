@@ -1,3 +1,3 @@
 #!/bin/sh
 
-sqlite3 /etc/OpenBTS/OpenBTS.db ".dump CONFIG" > OpenBTS.export.sql
+sqlite3 /usr/local/etc/OpenBTS/OpenBTS.db ".dump CONFIG" > OpenBTS.export.sql
